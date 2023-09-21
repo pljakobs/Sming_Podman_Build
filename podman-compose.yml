@@ -1,0 +1,6 @@
+version: "2"
+
+services:
+   sming:
+      build: .
+      image: sming:v5      
