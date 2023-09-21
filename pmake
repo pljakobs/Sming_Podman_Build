@@ -1,1 +1,45 @@
-/usr/bin/pmake
+#!/bin/bash
+i=1
+j=$#
+C_BUILDARGS=""
+COM_PORT=""
+PODMAN_ARGS="--rm "
+PODMAN_RUNTIME="runc"
+while [ $i -le $j ]
+do
+	C_BUILDARGS="$C_BUILDARGS $1"
+
+	case $1 in
+		readpart| flashmap| flashboot| flash| flashconfig| erasepart| flashapp| verifyflash| flashid| readmap| flashinit| flashpart)
+			COM_PORT=$(grep COM_PORT ./component.mk|cut -d "=" -f 2)
+			if [ "$(getsebool container_use_devices)" != "container_use_devices --> on" ]
+			then
+				echo "configure selinux to allow containers to use devices, this will require sudo rights"
+				sudo setsebool container_use_devices=on
+			fi;;
+		hwconfig-edit)
+			xhost +"local:podman@"
+			PODMAN_ARGS="$PODMAN_ARGS -e DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix:rw -u 0 --net=host --security-opt label=type:container_runtime_t";;
+	esac
+
+	i=$((i + 1))
+	shift 1
+done
+echo "found port $COM_PORT"
+if [ "$COM_PORT" != "" ]
+then
+	if [ -e $COM_PORT ]
+	then
+		DEVICE_ARG="--device $COM_PORT:$COM_PORT:rwm --group-add keep-groups"
+	else
+		DEVICE_ARG=""
+		echo "$COM_PORT is not available on host device, stopping"
+		exit
+	fi
+else
+	DEVICE_ARG=""
+fi
+echo "podman command:"
+echo " podman run $(pwd):/root/build:Z $PODMAN_ARGS $DEVICE_ARG -e C_BUILDARGS="$C_BUILDARGS" sming:v5"
+	
+podman run -v $(pwd):/root/build:Z $PODMAN_ARGS $DEVICE_ARG -e C_BUILDARGS="$C_BUILDARGS" sming:v5
